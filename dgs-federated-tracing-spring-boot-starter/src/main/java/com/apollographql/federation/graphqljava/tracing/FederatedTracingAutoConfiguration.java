@@ -16,8 +16,7 @@ public class FederatedTracingAutoConfiguration {
 
   @Bean
   @ConditionalOnMissingBean
-  // GraphQLContextContributor introduced in Netflix DGS 5.0.6 and higher, if not available, don't
-  // create this bean.
+  // GraphQLContextContributor introduced in Netflix DGS 5.0.6, if not available, don't create.
   @ConditionalOnClass(name = "com.netflix.graphql.dgs.context.GraphQLContextContributor")
   public FederatedTracingGraphQLContextContributor federatedTracingGraphQLContextContributor() {
     return new FederatedTracingGraphQLContextContributor();

@@ -24,9 +24,8 @@ public class FederatedTracingGraphQLContextContributor implements GraphQLContext
       String federatedTracingHeaderValue =
           dgsRequestData.getHeaders().getFirst(FEDERATED_TRACING_HEADER_NAME);
       // If the FederatedTracing instance was created without providing a value for
-      // Option.shouldTracePredicate,
-      // the default logic will look for appropriate value stored using
-      // FEDERATED_TRACING_HEADER_NAME in the GraphQLContext
+      // Option.shouldTracePredicate, it will look for the value stored keyed by
+      // FEDERATED_TRACING_HEADER_NAME in the GraphQLContext, which this provides from http headers
       if (federatedTracingHeaderValue != null) {
         builder.put(FEDERATED_TRACING_HEADER_NAME, federatedTracingHeaderValue);
       }
