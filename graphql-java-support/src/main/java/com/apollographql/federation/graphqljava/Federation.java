@@ -3,6 +3,7 @@ package com.apollographql.federation.graphqljava;
 import static com.apollographql.federation.graphqljava.directives.LinkDirectiveProcessor.loadFederationImportedDefinitions;
 
 import graphql.language.DirectiveDefinition;
+import graphql.language.EnumTypeDefinition;
 import graphql.language.FieldDefinition;
 import graphql.language.ObjectTypeDefinition;
 import graphql.language.SDLNamedDefinition;
@@ -27,13 +28,15 @@ public final class Federation {
 
   public static final String FEDERATION_SPEC_V2_0 = "https://specs.apollo.dev/federation/v2.0";
   public static final String FEDERATION_SPEC_V2_1 = "https://specs.apollo.dev/federation/v2.1";
-
   public static final String FEDERATION_SPEC_V2_2 = "https://specs.apollo.dev/federation/v2.2";
-
   public static final String FEDERATION_SPEC_V2_3 = "https://specs.apollo.dev/federation/v2.3";
+  public static final String FEDERATION_SPEC_V2_4 = "https://specs.apollo.dev/federation/v2.4";
+  public static final String FEDERATION_SPEC_V2_5 = "https://specs.apollo.dev/federation/v2.5";
+  public static final String FEDERATION_SPEC_V2_6 = "https://specs.apollo.dev/federation/v2.6";
+  public static final String FEDERATION_SPEC_V2_7 = "https://specs.apollo.dev/federation/v2.7";
 
   private static final SchemaGenerator.Options generatorOptions =
-      SchemaGenerator.Options.defaultOptions();
+    SchemaGenerator.Options.defaultOptions();
 
   private Federation() {}
 
@@ -51,28 +54,28 @@ public final class Federation {
   // as those overloads do allow their inputs to specify an empty query type.
   @NotNull
   public static SchemaTransformer transform(
-      final GraphQLSchema schema, final boolean queryTypeShouldBeEmpty) {
+    final GraphQLSchema schema, final boolean queryTypeShouldBeEmpty) {
     return new SchemaTransformer(schema, queryTypeShouldBeEmpty);
   }
 
   public static SchemaTransformer transform(
-      final TypeDefinitionRegistry typeRegistry, final RuntimeWiring runtimeWiring) {
+    final TypeDefinitionRegistry typeRegistry, final RuntimeWiring runtimeWiring) {
     final boolean queryTypeShouldBeEmpty = ensureQueryTypeExists(typeRegistry);
 
     RuntimeWiring federatedRuntimeWiring;
     Stream<SDLNamedDefinition> importedDefinitions =
-        loadFederationImportedDefinitions(typeRegistry);
+      loadFederationImportedDefinitions(typeRegistry);
     if (importedDefinitions != null) {
       federatedRuntimeWiring =
-          ensureFederationV2DirectiveDefinitionsExist(
-              typeRegistry, runtimeWiring, importedDefinitions);
+        ensureFederationV2DirectiveDefinitionsExist(
+          typeRegistry, runtimeWiring, importedDefinitions);
     } else {
       federatedRuntimeWiring =
-          ensureFederationDirectiveDefinitionsExist(typeRegistry, runtimeWiring);
+        ensureFederationDirectiveDefinitionsExist(typeRegistry, runtimeWiring);
     }
     final GraphQLSchema schema =
-        new SchemaGenerator()
-            .makeExecutableSchema(generatorOptions, typeRegistry, federatedRuntimeWiring);
+      new SchemaGenerator()
+        .makeExecutableSchema(generatorOptions, typeRegistry, federatedRuntimeWiring);
     return transform(schema, queryTypeShouldBeEmpty).setFederation2(importedDefinitions != null);
   }
 
@@ -111,36 +114,36 @@ public final class Federation {
   // Returns true if a dummy field was added to the query type to ensure it's not empty.
   private static boolean ensureQueryTypeExists(TypeDefinitionRegistry typeRegistry) {
     final String queryName =
-        typeRegistry
-            .schemaDefinition()
-            .flatMap(
-                sdef ->
-                    sdef.getOperationTypeDefinitions().stream()
-                        .filter(op -> "query".equals(op.getName()))
-                        .findFirst()
-                        .map(def -> def.getTypeName().getName()))
-            .orElse("Query");
+      typeRegistry
+        .schemaDefinition()
+        .flatMap(
+          sdef ->
+            sdef.getOperationTypeDefinitions().stream()
+              .filter(op -> "query".equals(op.getName()))
+              .findFirst()
+              .map(def -> def.getTypeName().getName()))
+        .orElse("Query");
     TypeDefinition<?> newQueryType =
-        typeRegistry
-            .getType(queryName)
-            .orElse(ObjectTypeDefinition.newObjectTypeDefinition().name(queryName).build());
+      typeRegistry
+        .getType(queryName)
+        .orElse(ObjectTypeDefinition.newObjectTypeDefinition().name(queryName).build());
     final boolean addDummyField =
-        newQueryType instanceof ObjectTypeDefinition
-            && ((ObjectTypeDefinition) newQueryType).getFieldDefinitions().isEmpty()
-            && Optional.ofNullable(typeRegistry.objectTypeExtensions().get(queryName))
-                // Note that an object type extension must have at least one field
-                .map(List::isEmpty)
-                .orElse(true);
+      newQueryType instanceof ObjectTypeDefinition
+        && ((ObjectTypeDefinition) newQueryType).getFieldDefinitions().isEmpty()
+        && Optional.ofNullable(typeRegistry.objectTypeExtensions().get(queryName))
+        // Note that an object type extension must have at least one field
+        .map(List::isEmpty)
+        .orElse(true);
     if (addDummyField) {
       newQueryType =
-          ((ObjectTypeDefinition) newQueryType)
-              .transform(
-                  objectTypeDefinitionBuilder ->
-                      objectTypeDefinitionBuilder.fieldDefinition(
-                          FieldDefinition.newFieldDefinition()
-                              .name("_dummy")
-                              .type(new TypeName("String"))
-                              .build()));
+        ((ObjectTypeDefinition) newQueryType)
+          .transform(
+            objectTypeDefinitionBuilder ->
+              objectTypeDefinitionBuilder.fieldDefinition(
+                FieldDefinition.newFieldDefinition()
+                  .name("_dummy")
+                  .type(new TypeName("String"))
+                  .build()));
     }
     // Note that TypeDefinitionRegistry will throw if you attempt to redefine a type, but it
     // reacts fine if you try to remove a type that doesn't exist.
@@ -150,28 +153,30 @@ public final class Federation {
   }
 
   private static RuntimeWiring ensureFederationV2DirectiveDefinitionsExist(
-      TypeDefinitionRegistry typeRegistry,
-      RuntimeWiring runtimeWiring,
-      Stream<SDLNamedDefinition> importedDefinitions) {
+    TypeDefinitionRegistry typeRegistry,
+    RuntimeWiring runtimeWiring,
+    Stream<SDLNamedDefinition> importedDefinitions) {
 
     final HashSet<GraphQLScalarType> scalarTypesToAdd = new HashSet<>();
     importedDefinitions.forEach(
-        def -> {
-          if (def instanceof DirectiveDefinition
-              && !typeRegistry.getDirectiveDefinition(def.getName()).isPresent()) {
-            typeRegistry.add(def);
-          }
-          if (def instanceof ScalarTypeDefinition
-              && !runtimeWiring.getScalars().containsKey(def.getName())) {
-            typeRegistry.add(def);
-            scalarTypesToAdd.add(
-                GraphQLScalarType.newScalar()
-                    .name(def.getName())
-                    .description(null)
-                    .coercing(_Any.defaultCoercing)
-                    .build());
-          }
-        });
+      def -> {
+        if (def instanceof DirectiveDefinition
+          && !typeRegistry.getDirectiveDefinition(def.getName()).isPresent()) {
+          typeRegistry.add(def);
+        } else if (def instanceof ScalarTypeDefinition
+          && !typeRegistry.scalars().containsKey(def.getName())) {
+          typeRegistry.add(def);
+          scalarTypesToAdd.add(
+            GraphQLScalarType.newScalar()
+              .name(def.getName())
+              .description(null)
+              .coercing(_Any.defaultCoercing)
+              .build());
+        } else if (def instanceof EnumTypeDefinition
+          && !typeRegistry.types().containsKey(def.getName())) {
+          typeRegistry.add(def);
+        }
+      });
 
     if (!scalarTypesToAdd.isEmpty()) {
       return runtimeWiring.transform((wiring) -> scalarTypesToAdd.forEach(wiring::scalar));
@@ -181,12 +186,12 @@ public final class Federation {
   }
 
   private static RuntimeWiring ensureFederationDirectiveDefinitionsExist(
-      TypeDefinitionRegistry typeRegistry, RuntimeWiring runtimeWiring) {
+    TypeDefinitionRegistry typeRegistry, RuntimeWiring runtimeWiring) {
 
     // Add Federation directives if they don't exist.
     FederationDirectives.federation1DirectiveDefinitions.stream()
-        .filter(def -> !typeRegistry.getDirectiveDefinition(def.getName()).isPresent())
-        .forEachOrdered(typeRegistry::add);
+      .filter(def -> !typeRegistry.getDirectiveDefinition(def.getName()).isPresent())
+      .forEachOrdered(typeRegistry::add);
 
     // Add scalar type for _FieldSet, since the directives depend on it.
     if (!typeRegistry.getType(_FieldSet.typeName).isPresent()) {
@@ -201,3 +206,4 @@ public final class Federation {
     }
   }
 }
+

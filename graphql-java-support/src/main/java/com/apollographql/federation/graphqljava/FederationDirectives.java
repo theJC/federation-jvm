@@ -4,6 +4,10 @@ import static com.apollographql.federation.graphqljava.Federation.FEDERATION_SPE
 import static com.apollographql.federation.graphqljava.Federation.FEDERATION_SPEC_V2_1;
 import static com.apollographql.federation.graphqljava.Federation.FEDERATION_SPEC_V2_2;
 import static com.apollographql.federation.graphqljava.Federation.FEDERATION_SPEC_V2_3;
+import static com.apollographql.federation.graphqljava.Federation.FEDERATION_SPEC_V2_4;
+import static com.apollographql.federation.graphqljava.Federation.FEDERATION_SPEC_V2_5;
+import static com.apollographql.federation.graphqljava.Federation.FEDERATION_SPEC_V2_6;
+import static com.apollographql.federation.graphqljava.Federation.FEDERATION_SPEC_V2_7;
 import static graphql.introspection.Introspection.DirectiveLocation.FIELD_DEFINITION;
 import static graphql.introspection.Introspection.DirectiveLocation.INTERFACE;
 import static graphql.introspection.Introspection.DirectiveLocation.OBJECT;
@@ -15,7 +19,13 @@ import static graphql.schema.GraphQLDirective.newDirective;
 
 import com.apollographql.federation.graphqljava.exceptions.UnsupportedFederationVersionException;
 import graphql.PublicApi;
-import graphql.language.*;
+import graphql.language.DirectiveDefinition;
+import graphql.language.DirectiveLocation;
+import graphql.language.Document;
+import graphql.language.InputValueDefinition;
+import graphql.language.NonNullType;
+import graphql.language.SDLNamedDefinition;
+import graphql.language.TypeName;
 import graphql.parser.Parser;
 import graphql.schema.GraphQLArgument;
 import graphql.schema.GraphQLDirective;
@@ -25,7 +35,12 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -36,119 +51,119 @@ public final class FederationDirectives {
   private static final DirectiveLocation DL_OBJECT = newDirectiveLocation().name("OBJECT").build();
 
   private static final DirectiveLocation DL_INTERFACE =
-      newDirectiveLocation().name("INTERFACE").build();
+    newDirectiveLocation().name("INTERFACE").build();
 
   private static final DirectiveLocation DL_FIELD_DEFINITION =
-      newDirectiveLocation().name("FIELD_DEFINITION").build();
+    newDirectiveLocation().name("FIELD_DEFINITION").build();
 
   /* fields: _FieldSet */
   public static final String fieldsArgumentName = "fields";
   private static final GraphQLArgument fieldsArgument =
-      newArgument().name(fieldsArgumentName).type(new GraphQLNonNull(_FieldSet.type)).build();
+    newArgument().name(fieldsArgumentName).type(new GraphQLNonNull(_FieldSet.type)).build();
 
   private static GraphQLArgument fieldsArgument(String value) {
     return newArgument(fieldsArgument).value(value).build();
   }
 
   private static final InputValueDefinition fieldsDefinition =
-      newInputValueDefinition()
-          .name(fieldsArgumentName)
-          .type(new NonNullType(new TypeName(_FieldSet.typeName)))
-          .build();
+    newInputValueDefinition()
+      .name(fieldsArgumentName)
+      .type(new NonNullType(new TypeName(_FieldSet.typeName)))
+      .build();
 
   /* directive @key(fields: _FieldSet!) repeatable on OBJECT | INTERFACE */
 
   public static final String keyName = "key";
 
   public static final GraphQLDirective key =
-      newDirective()
-          .name(keyName)
-          .validLocations(OBJECT, INTERFACE)
-          .argument(fieldsArgument)
-          .repeatable(true)
-          .build();
+    newDirective()
+      .name(keyName)
+      .validLocations(OBJECT, INTERFACE)
+      .argument(fieldsArgument)
+      .repeatable(true)
+      .build();
 
   public static GraphQLDirective key(String fields) {
     return newDirective(key).argument(fieldsArgument(fields)).build();
   }
 
   public static final DirectiveDefinition keyDefinitionFed1 =
-      newDirectiveDefinition()
-          .name(keyName)
-          .directiveLocations(Arrays.asList(DL_OBJECT, DL_INTERFACE))
-          .inputValueDefinition(fieldsDefinition)
-          .repeatable(true)
-          .build();
+    newDirectiveDefinition()
+      .name(keyName)
+      .directiveLocations(Arrays.asList(DL_OBJECT, DL_INTERFACE))
+      .inputValueDefinition(fieldsDefinition)
+      .repeatable(true)
+      .build();
 
   /* directive @external on FIELD_DEFINITION */
 
   public static final String externalName = "external";
 
   public static final GraphQLDirective external =
-      newDirective().name(externalName).validLocations(FIELD_DEFINITION).build();
+    newDirective().name(externalName).validLocations(FIELD_DEFINITION).build();
 
   public static final DirectiveDefinition externalDefinition =
-      newDirectiveDefinition()
-          .name(externalName)
-          .directiveLocations(Collections.singletonList(DL_FIELD_DEFINITION))
-          .build();
+    newDirectiveDefinition()
+      .name(externalName)
+      .directiveLocations(Collections.singletonList(DL_FIELD_DEFINITION))
+      .build();
 
   /* directive @requires(fields: _FieldSet!) on FIELD_DEFINITION */
 
   public static final String requiresName = "requires";
 
   public static final GraphQLDirective requires =
-      newDirective()
-          .name(requiresName)
-          .validLocations(FIELD_DEFINITION)
-          .argument(fieldsArgument)
-          .build();
+    newDirective()
+      .name(requiresName)
+      .validLocations(FIELD_DEFINITION)
+      .argument(fieldsArgument)
+      .build();
 
   public static GraphQLDirective requires(String fields) {
     return newDirective(requires).argument(fieldsArgument(fields)).build();
   }
 
   public static final DirectiveDefinition requiresDefinition =
-      newDirectiveDefinition()
-          .name(requiresName)
-          .directiveLocations(Collections.singletonList(DL_FIELD_DEFINITION))
-          .inputValueDefinition(fieldsDefinition)
-          .build();
+    newDirectiveDefinition()
+      .name(requiresName)
+      .directiveLocations(Collections.singletonList(DL_FIELD_DEFINITION))
+      .inputValueDefinition(fieldsDefinition)
+      .build();
 
   /* directive @provides(fields: _FieldSet!) on FIELD_DEFINITION */
 
   public static final String providesName = "provides";
 
   public static final GraphQLDirective provides =
-      newDirective()
-          .name(providesName)
-          .validLocations(FIELD_DEFINITION)
-          .argument(fieldsArgument)
-          .build();
+    newDirective()
+      .name(providesName)
+      .validLocations(FIELD_DEFINITION)
+      .argument(fieldsArgument)
+      .build();
 
   public static GraphQLDirective provides(String fields) {
     return newDirective(provides).argument(fieldsArgument(fields)).build();
   }
 
   public static final DirectiveDefinition providesDefinition =
-      newDirectiveDefinition()
-          .name(providesName)
-          .directiveLocations(Collections.singletonList(DL_FIELD_DEFINITION))
-          .inputValueDefinition(fieldsDefinition)
-          .build();
+    newDirectiveDefinition()
+      .name(providesName)
+      .directiveLocations(Collections.singletonList(DL_FIELD_DEFINITION))
+      .inputValueDefinition(fieldsDefinition)
+      .build();
 
   /* directive @extends on OBJECT */
 
   public static final String extendsName = "extends";
 
   public static final GraphQLDirective extends_ =
-      newDirective().name(extendsName).validLocations(OBJECT, INTERFACE).build();
+    newDirective().name(extendsName).validLocations(OBJECT, INTERFACE).build();
 
   public static final DirectiveDefinition extendsDefinition =
-      newDirectiveDefinition()
-          .name(extendsName)
-          .directiveLocations(Arrays.asList(DL_OBJECT, DL_INTERFACE))
-          .build();
+    newDirectiveDefinition()
+      .name(extendsName)
+      .directiveLocations(Arrays.asList(DL_OBJECT, DL_INTERFACE))
+      .build();
 
   private FederationDirectives() {}
 
@@ -161,7 +176,7 @@ public final class FederationDirectives {
   // use #loadFederationSpecDefinitions(string) instead
   @Deprecated
   static final List<SDLNamedDefinition> federation2Definitions =
-      loadFederationSpecDefinitions(FEDERATION_SPEC_V2_0);
+    loadFederationSpecDefinitions(FEDERATION_SPEC_V2_0);
 
   public static final Set<DirectiveDefinition> federation1DirectiveDefinitions;
 
@@ -169,32 +184,32 @@ public final class FederationDirectives {
     // We need to maintain sorted order here for tests, since SchemaPrinter doesn't sort
     // directive definitions.
     allDirectives =
-        Stream.of(key, external, requires, provides, extends_)
-            .sorted(Comparator.comparing(GraphQLDirective::getName))
-            .collect(Collectors.toCollection(LinkedHashSet::new));
+      Stream.of(key, external, requires, provides, extends_)
+        .sorted(Comparator.comparing(GraphQLDirective::getName))
+        .collect(Collectors.toCollection(LinkedHashSet::new));
     allDefinitions =
-        Stream.of(
-                keyDefinitionFed1,
-                externalDefinition,
-                requiresDefinition,
-                providesDefinition,
-                extendsDefinition)
-            .sorted(Comparator.comparing(DirectiveDefinition::getName))
-            .collect(Collectors.toCollection(LinkedHashSet::new));
+      Stream.of(
+          keyDefinitionFed1,
+          externalDefinition,
+          requiresDefinition,
+          providesDefinition,
+          extendsDefinition)
+        .sorted(Comparator.comparing(DirectiveDefinition::getName))
+        .collect(Collectors.toCollection(LinkedHashSet::new));
     allNames =
-        allDefinitions.stream()
-            .map(DirectiveDefinition::getName)
-            .collect(Collectors.toCollection(LinkedHashSet::new));
+      allDefinitions.stream()
+        .map(DirectiveDefinition::getName)
+        .collect(Collectors.toCollection(LinkedHashSet::new));
 
     federation1DirectiveDefinitions =
-        Stream.of(
-                keyDefinitionFed1,
-                externalDefinition,
-                requiresDefinition,
-                providesDefinition,
-                extendsDefinition)
-            .sorted(Comparator.comparing(DirectiveDefinition::getName))
-            .collect(Collectors.toCollection(LinkedHashSet::new));
+      Stream.of(
+          keyDefinitionFed1,
+          externalDefinition,
+          requiresDefinition,
+          providesDefinition,
+          extendsDefinition)
+        .sorted(Comparator.comparing(DirectiveDefinition::getName))
+        .collect(Collectors.toCollection(LinkedHashSet::new));
   }
 
   public static List<SDLNamedDefinition> loadFederationSpecDefinitions(String federationSpec) {
@@ -206,7 +221,14 @@ public final class FederationDirectives {
       case FEDERATION_SPEC_V2_2:
         return loadFed2Definitions("definitions_fed2_2.graphqls");
       case FEDERATION_SPEC_V2_3:
+      case FEDERATION_SPEC_V2_4:
         return loadFed2Definitions("definitions_fed2_3.graphqls");
+      case FEDERATION_SPEC_V2_5:
+        return loadFed2Definitions("definitions_fed2_5.graphqls");
+      case FEDERATION_SPEC_V2_6:
+        return loadFed2Definitions("definitions_fed2_6.graphqls");
+      case FEDERATION_SPEC_V2_7:
+        return loadFed2Definitions("definitions_fed2_7.graphqls");
       default:
         throw new UnsupportedFederationVersionException(federationSpec);
     }
@@ -214,22 +236,22 @@ public final class FederationDirectives {
 
   private static List<SDLNamedDefinition> loadFed2Definitions(String fileName) {
     InputStream inputStream =
-        FederationDirectives.class.getClassLoader().getResourceAsStream(fileName);
+      FederationDirectives.class.getClassLoader().getResourceAsStream(fileName);
     if (inputStream != null) {
       try (BufferedReader reader =
-          new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {
+             new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {
         Document document = new Parser().parseDocument(reader);
 
         return document.getDefinitionsOfType(SDLNamedDefinition.class).stream()
-            .sorted(Comparator.comparing(SDLNamedDefinition::getName))
-            .collect(Collectors.toList());
+          .sorted(Comparator.comparing(SDLNamedDefinition::getName))
+          .collect(Collectors.toList());
       } catch (IOException e) {
         throw new RuntimeException(
-            "Unable to load federation directive definitions from " + fileName);
+          "Unable to load federation directive definitions from " + fileName);
       }
     } else {
       throw new RuntimeException(
-          "Unable to load federation directive definitions from " + fileName);
+        "Unable to load federation directive definitions from " + fileName);
     }
   }
 }

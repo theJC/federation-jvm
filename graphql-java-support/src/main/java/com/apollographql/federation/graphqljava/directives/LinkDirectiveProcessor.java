@@ -26,6 +26,18 @@ import org.jetbrains.annotations.Nullable;
 
 public final class LinkDirectiveProcessor {
 
+  private static final Map<String, Integer> DIRECTIVES_BY_MIN_SUPPORTED_VERSION =
+    Map.of(
+      "@composeDirective", 21,
+      "@interfaceObject", 23,
+      "@authenticated", 25,
+      "@requiresScopes", 25,
+      "@policy", 26,
+      "@context", 28,
+      "@fromContext", 28,
+      "@cost", 29,
+      "@listSize", 29);
+
   private LinkDirectiveProcessor() {}
 
   /**
@@ -37,20 +49,20 @@ public final class LinkDirectiveProcessor {
    *     importing federation specification
    */
   public static @Nullable Stream<SDLNamedDefinition> loadFederationImportedDefinitions(
-      TypeDefinitionRegistry typeDefinitionRegistry) {
+    TypeDefinitionRegistry typeDefinitionRegistry) {
 
     Stream<Directive> schemaLinkDirectives =
-        typeDefinitionRegistry
-            .schemaDefinition()
-            .map(LinkDirectiveProcessor::getFederationLinkDirectives)
-            .orElse(Stream.empty());
+      typeDefinitionRegistry
+        .schemaDefinition()
+        .map(LinkDirectiveProcessor::getFederationLinkDirectives)
+        .orElse(Stream.empty());
 
     Stream<Directive> extensionLinkDirectives =
-        typeDefinitionRegistry.getSchemaExtensionDefinitions().stream()
-            .flatMap(LinkDirectiveProcessor::getFederationLinkDirectives);
+      typeDefinitionRegistry.getSchemaExtensionDefinitions().stream()
+        .flatMap(LinkDirectiveProcessor::getFederationLinkDirectives);
 
     List<Directive> federationLinkDirectives =
-        Stream.concat(schemaLinkDirectives, extensionLinkDirectives).collect(Collectors.toList());
+      Stream.concat(schemaLinkDirectives, extensionLinkDirectives).collect(Collectors.toList());
 
     if (federationLinkDirectives.isEmpty()) {
       return null;
@@ -68,21 +80,18 @@ public final class LinkDirectiveProcessor {
     final String specLink = ((StringValue) urlArgument.getValue()).getValue();
 
     final int federationVersion = parseFederationVersion(specLink);
-    if (imports.containsKey("@composeDirective")
-        && !isComposeDirectiveSupported(federationVersion)) {
-      throw new UnsupportedLinkImportException("@composeDirective");
-    }
-
-    if (imports.containsKey("@interfaceObject") && !isInterfaceObjectSupported(federationVersion)) {
-      throw new UnsupportedLinkImportException("@interfaceObject");
+    for (Map.Entry<String, Integer> directiveInfo :
+      DIRECTIVES_BY_MIN_SUPPORTED_VERSION.entrySet()) {
+      validateDirectiveSupport(
+        imports, federationVersion, directiveInfo.getKey(), directiveInfo.getValue());
     }
 
     return loadFederationSpecDefinitions(specLink).stream()
-        .map(
-            definition ->
-                (SDLNamedDefinition)
-                    new AstTransformer()
-                        .transform(definition, new LinkImportsRenamingVisitor(imports)));
+      .map(
+        definition ->
+          (SDLNamedDefinition)
+            new AstTransformer()
+              .transform(definition, new LinkImportsRenamingVisitor(imports)));
   }
 
   private static int parseFederationVersion(String specLink) {
@@ -94,26 +103,25 @@ public final class LinkDirectiveProcessor {
     }
   }
 
-  private static boolean isComposeDirectiveSupported(int federationVersion) {
-    return federationVersion >= 21;
-  }
-
-  private static boolean isInterfaceObjectSupported(int federationVersion) {
-    return federationVersion >= 23;
+  private static void validateDirectiveSupport(
+    Map<String, String> imports, int version, String directiveName, int minVersion) {
+    if (imports.containsKey(directiveName) && version < minVersion) {
+      throw new UnsupportedLinkImportException(directiveName, minVersion, version);
+    }
   }
 
   private static Stream<Directive> getFederationLinkDirectives(SchemaDefinition schemaDefinition) {
     return schemaDefinition.getDirectives("link").stream()
-        .filter(
-            directive -> {
-              Argument urlArgument = directive.getArgument("url");
-              if (urlArgument != null && urlArgument.getValue() instanceof StringValue) {
-                StringValue value = (StringValue) urlArgument.getValue();
-                return value.getValue().startsWith("https://specs.apollo.dev/federation/");
-              } else {
-                return false;
-              }
-            });
+      .filter(
+        directive -> {
+          Argument urlArgument = directive.getArgument("url");
+          if (urlArgument != null && urlArgument.getValue() instanceof StringValue) {
+            StringValue value = (StringValue) urlArgument.getValue();
+            return value.getValue().startsWith("https://specs.apollo.dev/federation/");
+          } else {
+            return false;
+          }
+        });
   }
 
   private static Map<String, String> parseLinkImports(Directive linkDirective) {
@@ -132,20 +140,20 @@ public final class LinkDirectiveProcessor {
           final ObjectValue importedObjectValue = (ObjectValue) importedDefinition;
 
           final Optional<ObjectField> nameField =
-              importedObjectValue.getObjectFields().stream()
-                  .filter(field -> field.getName().equals("name"))
-                  .findFirst();
+            importedObjectValue.getObjectFields().stream()
+              .filter(field -> field.getName().equals("name"))
+              .findFirst();
           final Optional<ObjectField> renameAsField =
-              importedObjectValue.getObjectFields().stream()
-                  .filter(field -> field.getName().equals("as"))
-                  .findFirst();
+            importedObjectValue.getObjectFields().stream()
+              .filter(field -> field.getName().equals("as"))
+              .findFirst();
 
-          if (!nameField.isPresent() || !(nameField.get().getValue() instanceof StringValue)) {
+          if (nameField.isEmpty() || !(nameField.get().getValue() instanceof StringValue)) {
             throw new UnsupportedLinkImportException(importedObjectValue);
           }
           final String name = ((StringValue) nameField.get().getValue()).getValue();
 
-          if (!renameAsField.isPresent()) {
+          if (renameAsField.isEmpty()) {
             imports.put(name, name);
           } else {
             final Value renamedAsValue = renameAsField.get().getValue();
